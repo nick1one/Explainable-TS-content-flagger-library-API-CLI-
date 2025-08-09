@@ -22,7 +22,9 @@ async function main() {
   }
   const pIndex = args.indexOf('--platform');
   const platform =
-    pIndex !== -1 && args[pIndex + 1] ? (args[pIndex + 1] as any) : 'generic';
+    pIndex !== -1 && args[pIndex + 1]
+      ? (args[pIndex + 1] as 'generic' | 'x' | 'instagram' | 'tiktok')
+      : 'generic';
 
   if (!text) {
     console.error(
