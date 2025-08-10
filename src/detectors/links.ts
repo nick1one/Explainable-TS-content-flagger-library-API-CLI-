@@ -1,4 +1,4 @@
-import type { Flag } from '../types.js';
+import type { Flag } from '../schema.js';
 
 const urlRe = /\bhttps?:\/\/[\w.-]+(?:\/[\w\-._~:/?#[\]@!$&'()*+,;=]*)?/gi;
 const shorteners = [
@@ -30,6 +30,7 @@ export function linksDetector(text: string): Flag[] {
     })();
     if (shorteners.includes(host)) {
       flags.push({
+        source: 'rule',
         category: 'links',
         weight: 30,
         message: 'Suspicious link shortener',
@@ -38,6 +39,7 @@ export function linksDetector(text: string): Flag[] {
       });
     } else {
       flags.push({
+        source: 'rule',
         category: 'links',
         weight: 5,
         message: 'External link',
@@ -48,6 +50,7 @@ export function linksDetector(text: string): Flag[] {
   }
   if (count >= 3) {
     flags.push({
+      source: 'rule',
       category: 'spam',
       weight: 15,
       message: 'Too many links',

@@ -1,7 +1,7 @@
 import { normalizeForMatch } from '../normalize.js';
 import fs from 'node:fs';
 import path from 'node:path';
-import type { Flag, Category } from '../types.js';
+import type { Flag } from '../schema.js';
 
 function loadList(name: string): string[] {
   const p = path.join(
@@ -28,7 +28,7 @@ function* findAll(
 }
 
 export function wordlistDetector(
-  category: Category,
+  category: string,
   listName: string,
   weight = 20
 ) {
@@ -40,6 +40,7 @@ export function wordlistDetector(
       if (!phrase.trim()) continue;
       for (const [a, b] of findAll(norm, phrase)) {
         flags.push({
+          source: 'rule',
           category,
           weight,
           message: `Matched phrase: ${phrase}`,

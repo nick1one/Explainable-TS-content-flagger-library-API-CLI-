@@ -11,6 +11,9 @@ export default [
       parserOptions: {
         ecmaVersion: 'latest',
         sourceType: 'module',
+        // Enable type-aware linting
+        project: ['./tsconfig.json'],
+        tsconfigRootDir: new URL('.', import.meta.url).pathname,
       },
       globals: {
         console: 'readonly',
@@ -25,7 +28,14 @@ export default [
       '@typescript-eslint': tseslint,
     },
     rules: {
+      // Base TS rules
       ...tseslint.configs.recommended.rules,
+      // Type-aware rules (selected)
+      '@typescript-eslint/no-unsafe-assignment': 'error',
+      '@typescript-eslint/no-unsafe-call': 'error',
+      '@typescript-eslint/no-unsafe-member-access': 'error',
+      '@typescript-eslint/no-unsafe-argument': 'error',
+      '@typescript-eslint/restrict-template-expressions': 'warn',
       '@typescript-eslint/no-unused-vars': 'error',
       '@typescript-eslint/no-explicit-any': 'warn',
       'prefer-const': 'error',

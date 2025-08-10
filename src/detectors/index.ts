@@ -2,7 +2,7 @@ import { wordlistDetector } from './wordlist.js';
 import { piiDetector } from './pii.js';
 import { linksDetector } from './links.js';
 import { spamDetector } from './spam.js';
-import type { Flag } from '../types.js';
+import type { Flag } from '../schema.js';
 
 const profanity = wordlistDetector('profanity', 'profanity', 18);
 const hate = wordlistDetector('hate', 'hate', 28);

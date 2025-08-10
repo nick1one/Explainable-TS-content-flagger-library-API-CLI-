@@ -20,12 +20,23 @@
     "flag-post": "dist/cli.js"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.59.0",
+    "@aws-sdk/client-rekognition": "^3.864.0",
+    "@supabase/supabase-js": "^2.54.0",
+    "blockhash-core": "^0.1.0",
     "fastify": "^4.28.1",
+    "ffmpeg-static": "^5.2.0",
+    "fluent-ffmpeg": "^2.1.3",
+    "openai": "^5.12.2",
+    "sharp": "^0.34.3",
+    "tmp": "^0.2.5",
     "zod": "^3.23.8"
   },
   "devDependencies": {
     "@eslint/js": "^9.33.0",
+    "@types/fluent-ffmpeg": "^2.1.27",
     "@types/node": "^20.11.17",
+    "@types/tmp": "^0.2.6",
     "@typescript-eslint/eslint-plugin": "^8.0.1",
     "@typescript-eslint/parser": "^8.0.1",
     "eslint": "^9.8.0",

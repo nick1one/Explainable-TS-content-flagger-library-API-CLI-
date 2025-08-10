@@ -1,4 +1,4 @@
-import type { Flag } from '../types.js';
+import type { Flag } from '../schema.js';
 
 const emailRe = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i;
 const phoneRe =
@@ -28,6 +28,7 @@ export function piiDetector(text: string): Flag[] {
   const email = emailRe.exec(text);
   if (email)
     flags.push({
+      source: 'rule',
       category: 'pii',
       weight: 15,
       message: 'Email address detected',
@@ -38,6 +39,7 @@ export function piiDetector(text: string): Flag[] {
   const phone = phoneRe.exec(text);
   if (phone)
     flags.push({
+      source: 'rule',
       category: 'pii',
       weight: 10,
       message: 'Phone number detected',
@@ -48,6 +50,7 @@ export function piiDetector(text: string): Flag[] {
   const cc = ccRe.exec(text);
   if (cc && luhnCheck(cc[0]))
     flags.push({
+      source: 'rule',
       category: 'pii',
       weight: 35,
       message: 'Potential credit card number',
