@@ -3,7 +3,8 @@ import { computeImageHashes, HashResult } from './hashing.js';
 import { Media } from '../schema.js';
 import { Flag } from '../schema.js';
 import { AWSRekognitionProvider } from '../providers/vision/awsRekognition.js';
-import { saveMediaHash } from '../data/supabase.js';
+import { saveMediaHash, listRecentMediaHashes } from '../data/supabase.js';
+import { hammingDistance } from './hashing.js';
 
 export interface ImageModerationResult {
   hashes: HashResult;
@@ -60,26 +61,32 @@ export async function moderateImage(
     const imageBuffer = await fetchImage(media.url);
     const hashes = await computeImageHashes(imageBuffer);
 
-    // Check for duplicates if we have existing hashes
+    // Check for duplicates using Supabase (recent hashes) or provided existingHashes
     let duplicateHash: string | undefined;
     let duplicateDistance: number | undefined;
 
-    if (existingHashes && existingHashes.length > 0) {
-      for (const existingHash of existingHashes) {
-        const distance = computeSimilarity(hashes.pHash, existingHash);
-        if (distance >= (1 - config.thresholds.duplicate) * 100) {
-          duplicateHash = existingHash;
-          duplicateDistance = distance;
-          flags.push({
-            source: 'metadata',
-            category: 'duplicate',
-            weight: 20,
-            message: `Duplicate image detected (${distance.toFixed(1)}% similarity)`,
-            mediaHash: hashes.pHash,
-            confidence: distance / 100,
-          });
-          break;
-        }
+    const candidates: string[] = [];
+    if (config.enableSupabase) {
+      const recent = await listRecentMediaHashes('image', 500);
+      for (const row of recent) candidates.push(row.hash);
+    }
+    if (existingHashes && existingHashes.length > 0) candidates.push(...existingHashes);
+
+    for (const existingHash of candidates) {
+      const dist = hammingDistance(hashes.pHash, existingHash);
+      const normalized = dist / hashes.pHash.length; // 0..1
+      if (normalized <= config.thresholds.duplicate) {
+        duplicateHash = existingHash;
+        duplicateDistance = 1 - normalized;
+        flags.push({
+          source: 'metadata',
+          category: 'duplicate',
+          weight: 20,
+          message: `Duplicate image detected (${(duplicateDistance * 100).toFixed(1)}% similarity)`,
+          mediaHash: hashes.pHash,
+          confidence: duplicateDistance,
+        });
+        break;
       }
     }
 
@@ -149,12 +156,4 @@ export async function moderateImage(
 /**
  * Compute similarity between two hashes (helper function)
  */
-function computeSimilarity(hash1: string, hash2: string): number {
-  let distance = 0;
-  for (let i = 0; i < hash1.length; i++) {
-    if (hash1[i] !== hash2[i]) {
-      distance++;
-    }
-  }
-  return ((hash1.length - distance) / hash1.length) * 100;
-}
+// Deprecated: replaced by hammingDistance-based normalized comparison

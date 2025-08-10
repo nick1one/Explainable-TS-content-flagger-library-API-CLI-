@@ -12,6 +12,7 @@ export const FlagSchema = z.object({
   frameIndex: z.number().optional(),
   mediaHash: z.string().optional(),
   provider: z.string().optional(),
+  thumbPath: z.string().optional(),
 });
 
 export type Flag = z.infer<typeof FlagSchema>;

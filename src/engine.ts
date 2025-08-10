@@ -60,12 +60,15 @@ export async function moderateContent(
   try {
     // 1. Rule-based text moderation (existing detectors)
     if (text) {
+      const t0 = Date.now();
       const ruleFlags = await runRuleBasedDetectors(text);
       allFlags.push(...ruleFlags);
+      debug.timings.rule = Date.now() - t0;
     }
 
     // 2. ML text moderation (if enabled)
     if (text && config.enableLLM) {
+      const t0 = Date.now();
       const mlResult = await moderateTextWithML(text);
       debug.providers[mlResult.provider] = mlResult.enabled
         ? 'enabled'
@@ -77,6 +80,7 @@ export async function moderateContent(
         allFlags.length = 0; // Clear and replace
         allFlags.push(...mergedFlags);
       }
+      debug.timings.ml = Date.now() - t0;
     } else if (text) {
       debug.providers.ml = 'disabled';
     }
@@ -86,17 +90,21 @@ export async function moderateContent(
       let mediaFlags: Flag[] = [];
 
       if (media.type === 'image') {
+        const t0 = Date.now();
         const imageResult = await moderateImage(media);
         mediaFlags = imageResult.flags;
         debug.providers.vision = config.enableRekognition
           ? 'enabled'
           : 'disabled';
+        debug.timings.vision = (debug.timings.vision || 0) + (Date.now() - t0);
       } else if (media.type === 'video') {
+        const t0 = Date.now();
         const videoResult = await moderateVideo(media);
         mediaFlags = videoResult.flags;
         debug.providers.vision = config.enableRekognition
           ? 'enabled'
           : 'disabled';
+        debug.timings.vision = (debug.timings.vision || 0) + (Date.now() - t0);
       }
 
       allFlags.push(...mediaFlags);
@@ -110,7 +118,9 @@ export async function moderateContent(
     }
 
     // 5. Calculate final score and label
+    const tScore = Date.now();
     const scoringResult = calculateModerationScore(allFlags, options.context);
+    debug.timings.score = Date.now() - tScore;
 
     // 6. Update debug info
     debug.timings.total = Date.now() - startTime;

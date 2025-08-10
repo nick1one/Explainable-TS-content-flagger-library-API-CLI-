@@ -6,7 +6,8 @@ import { config } from '../config.js';
 import { computeImageHashes, HashResult } from './hashing.js';
 import { Media, Flag } from '../schema.js';
 import { AWSRekognitionProvider } from '../providers/vision/awsRekognition.js';
-import { saveMediaHash } from '../data/supabase.js';
+import { saveMediaHash, listRecentMediaHashes } from '../data/supabase.js';
+import { hammingDistance } from './hashing.js';
 
 // Set ffmpeg path
 if (ffmpegStatic) {
@@ -43,6 +44,9 @@ export async function moderateVideo(
     // Extract keyframes
     const extractedFrames = await extractKeyframes(media.url);
 
+    // Optionally load recent hashes for duplicate detection
+    const recentHashes = config.enableSupabase ? (await listRecentMediaHashes('video', 500)).map(h => h.hash) : [];
+
     // Compute hashes for each keyframe
     for (const frame of extractedFrames) {
       const hash = await computeImageHashes(frame.buffer);
@@ -52,23 +56,28 @@ export async function moderateVideo(
         hash,
       });
 
-      // Check for duplicates
-      if (existingHashes && existingHashes.length > 0) {
-        for (const existingHash of existingHashes) {
-          const distance = computeSimilarity(hash.pHash, existingHash);
-          if (distance >= (1 - config.thresholds.duplicate) * 100) {
-            duplicateHashes.push(existingHash);
-            duplicateDistances.push(distance);
-            flags.push({
-              source: 'metadata',
-              category: 'duplicate',
-              weight: 20,
-              message: `Duplicate video frame detected (${distance.toFixed(1)}% similarity)`,
-              mediaHash: hash.pHash,
-              frameIndex: frame.index,
-              confidence: distance / 100,
-            });
-          }
+      // Check for duplicates against provided and recent hashes
+      const candidates = [
+        ...(existingHashes || []),
+        ...recentHashes,
+      ];
+      for (const existingHash of candidates) {
+        const dist = hammingDistance(hash.pHash, existingHash);
+        const normalized = dist / hash.pHash.length; // 0..1 distance
+        if (normalized <= config.thresholds.duplicate) {
+          const similarity = 1 - normalized;
+          duplicateHashes.push(existingHash);
+          duplicateDistances.push(similarity * 100);
+          flags.push({
+            source: 'metadata',
+            category: 'duplicate',
+            weight: 20,
+            message: `Duplicate video frame detected (${(similarity * 100).toFixed(1)}% similarity)`,
+            mediaHash: hash.pHash,
+            frameIndex: frame.index,
+            confidence: similarity,
+          });
+          break;
         }
       }
 
@@ -113,15 +122,14 @@ export async function moderateVideo(
  */
 async function extractKeyframes(
   videoUrl: string
-): Promise<Array<{ index: number; timestamp: number; buffer: Buffer }>> {
+): Promise<Array<{ index: number; timestamp: number; buffer: Buffer; path: string }>> {
   const createTempDir = promisify(tmp.dir);
   const tempDir = await createTempDir();
   const fs = await import('fs/promises');
   const path = await import('path');
 
   return new Promise((resolve, reject) => {
-    const frames: Array<{ index: number; timestamp: number; buffer: Buffer }> =
-      [];
+    const frames: Array<{ index: number; timestamp: number; buffer: Buffer; path: string }> = [];
     let frameIndex = 0;
 
     ffmpeg(videoUrl)
@@ -158,11 +166,11 @@ async function extractKeyframes(
               index: frameIndex++,
               timestamp,
               buffer,
+              path: framePath,
             });
           }
 
-          // Clean up temp directory
-          await fs.rm(tempDir, { recursive: true, force: true });
+          // Note: keeping tempDir to allow referencing frame thumbnails via thumbPath
           resolve(frames);
         } catch (error) {
           const msg = error instanceof Error ? error.message : String(error);
@@ -181,7 +189,7 @@ async function extractKeyframes(
  * Moderate video frames using vision providers
  */
 async function moderateVideoWithVision(
-  frames: Array<{ index: number; timestamp: number; buffer: Buffer }>
+  frames: Array<{ index: number; timestamp: number; buffer: Buffer; path: string }>
 ): Promise<Flag[]> {
   const flags: Flag[] = [];
 
@@ -209,6 +217,7 @@ async function moderateVideoWithVision(
                 confidence: result.confidence,
                 provider: 'aws-rekognition',
                 frameIndex: frame.index,
+                thumbPath: frame.path,
               });
             }
           }
@@ -225,12 +234,4 @@ async function moderateVideoWithVision(
 /**
  * Compute similarity between two hashes
  */
-function computeSimilarity(hash1: string, hash2: string): number {
-  let distance = 0;
-  for (let i = 0; i < hash1.length; i++) {
-    if (hash1[i] !== hash2[i]) {
-      distance++;
-    }
-  }
-  return ((hash1.length - distance) / hash1.length) * 100;
-}
+// Deprecated: replaced by hammingDistance-based normalized comparison
